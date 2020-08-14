@@ -15,7 +15,6 @@ import sys
 import pickle
 import pyopencl as cl
 import importlib
-import numpy as np
 
 class PyGLCMViewer(PyGLWidget):
 
@@ -43,14 +42,8 @@ class PyGLCMViewer(PyGLWidget):
         self.translate([0,0,20])
         self.rotate([1,0,0],-45)
 
-        # Assume no pixel scaling unless explicitly set
-        self.pix_ratio = 1.
-
     def help(self):
         pass
-
-    def setPixelRatio(self, ratio):
-        self.pix_ratio = ratio
 
     def setSimulator(self, sim):
         if self.sim:
@@ -152,28 +145,8 @@ class PyGLCMViewer(PyGLWidget):
         self.updateGL()
 
     @pyqtSlot()
-    def loadGeometry(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        qs,_ = QFileDialog.getOpenFileName(self, 'Load geometry from pickle file', '', '*.pickle', options=options)
-        if qs:
-            filename = str(qs)
-            print(filename)
-            data = pickle.load(open(filename,'rb'))
-            if isinstance(data, dict):
-                self.sim.loadGeometryFromPickle(data)
-                self.frameNo = self.sim.stepNum
-                if self.run:
-                    self.frameNo += 1
-                self.updateGL()
-            else:
-                print("Pickle is in an unsupported format, sorry")
-
-    @pyqtSlot()
     def loadPickle(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        qs,_ = QFileDialog.getOpenFileName(self, 'Load pickle file', '', '*.pickle', options=options)
+        qs,_ = QFileDialog.getOpenFileName(self, 'Load pickle file', '', '*.pickle')
         if qs and self.getOpenCLPlatDev():
             filename = str(qs)
             print(filename)
@@ -203,9 +176,7 @@ class PyGLCMViewer(PyGLWidget):
 
     @pyqtSlot()
     def load(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        qs,_ = QFileDialog.getOpenFileName(self, 'Load Python module', '', '*.py', options=options)
+        qs,_ = QFileDialog.getOpenFileName(self, 'Load Python module', '', '*.py')
         if qs:
             modfile = str(qs)
             print(modfile)
@@ -241,18 +212,13 @@ class PyGLCMViewer(PyGLWidget):
             cid = self.selectedName
             txt = ''
             if cid in states:
-                txt += '<b>Selected Cell (id = %d)</b><br>'%(cid)
+                txt += 'Selected Cell (id = %d)\n---\n'%(cid)
                 s = states[cid]
                 for (name,val) in list(s.__dict__.items()):
                     if name not in CellState.excludeAttr:
-                        txt += '<b>' + name + '</b>:\t'
-                        if type(val) in [float, np.float32, np.float64]:
-                            txt += '%g'%val
-                        elif type(val) in [list, tuple, np.array]:
-                            txt += ', '.join(['%g'%v for v in val])
-                        else:
-                            txt += str(val)
-                        txt += '<br>'
+                        txt += name + ': '
+                        txt += str(val)
+                        txt += '\n'
             self.selectedCell.emit(txt)
             self.updateGL()
 
@@ -293,17 +259,16 @@ class PyGLCMViewer(PyGLWidget):
         #glScalef(s,s,s)
 
         # Draw a grid in xy plane
-        glEnable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
         glColor3f(1.0, 1.0, 1.0)
         glEnable(GL_LINE_SMOOTH)
         glLineWidth(1.0)
         glBegin(GL_LINES)
         for i in range(25):
-            glVertex(-120, (i-12)*10, 0)
-            glVertex(120, (i-12)*10, 0)
-            glVertex((i-12)*10, -120, 0)
-            glVertex((i-12)*10, 120, 0)
+            glVertex(-120, (i-12)*10)
+            glVertex(120, (i-12)*10)
+            glVertex((i-12)*10, -120)
+            glVertex((i-12)*10, 120)
         glEnd()
 
         # Draw x,y,z axes

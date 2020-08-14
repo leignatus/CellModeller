@@ -40,10 +40,8 @@ something else - e.g. a bulk flow term.
         self.dV = reduce(lambda x, y: x * y, self.gridSize)
 
         self.regul = regul 
-        self.setCellStates(sim.cellStates)
+        self.cellStates = sim.cellStates
 
-    def setCellStates(self, cs):
-        self.cellStates = cs
 
     def setBiophysics(self, biophysics):
         self.biophys = biophysics

@@ -8,7 +8,7 @@ max_cells = 2**15
 
 def setup(sim):
     # Set biophysics, signalling, and regulation models
-    biophys = CLBacterium(sim, jitter_z=True)
+    biophys = CLBacterium(sim, jitter_z=False)
 
     # use this file for reg too
     regul = ModuleRegulator(sim, sim.moduleName)	

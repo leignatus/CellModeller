@@ -35,6 +35,7 @@ visualised.
                     moduleName, \
                     dt, \
                     pickleSteps=50, \
+                    gamma = 10, \
                     outputDirName=None, \
                     moduleStr=None, \
                     saveOutput=False, \
@@ -50,6 +51,7 @@ visualised.
         self.sig = None
         self.integ = None
         self.pickleSteps = pickleSteps
+        
 
         # No cells yet, initialise indices and empty lists/dicts, zero counters
         self._next_id = 1
@@ -61,8 +63,13 @@ visualised.
         self.stepNum = 0
         self.lineage = {}
 
+        self.deadCellsIdx = numpy.array([], dtype = numpy.int32)
+        
         # Time step
         self.dt = dt
+        
+        # Set parameters
+        self.gamma = gamma
 
         if "CMPATH" in os.environ:
             self.cfg_file = os.path.join(os.environ["CMPATH"], 'CMconfig.cfg')
@@ -109,7 +116,7 @@ visualised.
         self.setSaveOutput(saveOutput)
         
         # Call the user-defined setup function on ourself
-        self.module.setup(self)
+        self.module.setup(self,self.gamma)
 
     def setSaveOutput(self, save):
         self.saveOutput = save
@@ -120,6 +127,7 @@ visualised.
         import time
         startTime = time.localtime()
         outputFileRoot = self.outputDirName if self.outputDirName else self.moduleName + '-' + time.strftime('%y-%m-%d-%H-%M', startTime)
+        print(outputFileRoot)
         self.outputDirPath = os.path.join('data', outputFileRoot)
         if 'CMPATH' in os.environ:
             self.outputDirPath = os.path.join(os.environ["CMPATH"], self.outputDirPath)
@@ -154,7 +162,16 @@ visualised.
     ## Get the index (into flat arrays) of the next cell to be created
     def next_idx(self):
         idx = self._next_idx
-        self._next_idx += 1
+        
+        print(self.deadCellsIdx)
+        
+        if len(self.deadCellsIdx) > 0:
+            self._next_idx = self.deadCellsIdx[0]
+            self.deadCellsIdx = numpy.delete(self.deadCellsIdx, 0)
+            print(self._next_idx)
+            
+        else:
+            self._next_idx += 1
         return idx
 
 
@@ -351,8 +368,12 @@ visualised.
     def step(self):
         self.reg.step(self.dt)
         states = dict(self.cellStates)
+        
+        self.deadCellsIdx = numpy.array([cell.idx for id,cell in self.cellStates.items() if cell.dead != 0 ], dtype = numpy.int32)
+        
+        #print(self.deadCellsIdx)
+        
         for (cid,state) in list(states.items()):
-            state.time = self.stepNum * self.dt
             if state.divideFlag:
                 self.divide(state) #neighbours no longer current
 
@@ -394,39 +415,17 @@ visualised.
         data['moduleStr'] = self.moduleOutput
         data['moduleName'] = self.moduleName
         if self.integ:
-        #    print("Writing new pickle format")
+            print("Writing new pickle format")
             data['specData'] = self.integ.levels
-        if self.sig:
+            data['sigGrid'] = self.integ.signalLevel
             data['sigGridOrig'] = self.sig.gridOrig
             data['sigGridDim'] = self.sig.gridDim
             data['sigGridSize'] = self.sig.gridSize
-        if self.sig and self.integ:
-            data['sigGrid'] = self.integ.signalLevel
+        if self.sig:
             data['sigData'] = self.integ.cellSigLevels
             data['sigGrid'] = self.integ.signalLevel
-        pickle.dump(data, outfile, protocol=-1)
+        pickle.dump(data, outfile, protocol = 2)
         #output csv file with cell pos,dir,len - sig?
-
-    # Populate simulation from saved data pickle
-    def loadGeometryFromPickle(self, data):
-        self.setCellStates(data['cellStates'])
-        self.lineage = data['lineage']
-        idx_map = {}
-        id_map = {}
-        idmax = 0
-        for id,state in data['cellStates'].items():
-            idx_map[state.id] = state.idx
-            id_map[state.idx] = state.id
-            if id>idmax:
-                idmax=id
-        self.idToIdx = idx_map
-        self.idxToId = id_map
-        self._next_id = idmax+1
-        self._next_idx = len(data['cellStates'])
-        if self.integ:
-            self.integ.setCellStates(self.cellStates)
-        if self.sig:
-            self.integ.setCellStates(self.cellStates)
 
     # Populate simulation from saved data pickle
     def loadFromPickle(self, data):
